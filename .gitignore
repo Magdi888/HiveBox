@@ -1,0 +1,4 @@
+env
+api.txt
+.pytest*
+__pycache__
