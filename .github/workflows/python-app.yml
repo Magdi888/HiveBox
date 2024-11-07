@@ -78,7 +78,14 @@ jobs:
         context: .
         tags: ghcr.io/${{ env.OWNER_LC }}/hivebox:${{ github.sha }}   
 
-    - name: Test
+    - name: Test Endpoint 
       run: |
-          docker run --rm -p 8000:8000 ghcr.io/${{ env.OWNER_LC }}/hivebox:${{ github.sha }}
-          curl localhost:8000/version
+          docker run -d -p 8000:8000 --name hivebox ghcr.io/${{ env.OWNER_LC }}/hivebox:${{ github.sha }}
+          response =$(curl localhost:8000/version)
+          if [ "$response" == "0.0.1" ]; then
+            echo "Endpoint is up"
+          else
+            echo "Endpoint is not up"
+          fi
+          docker stop hivebox
+          docker rm hivebox
