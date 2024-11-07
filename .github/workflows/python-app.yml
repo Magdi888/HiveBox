@@ -78,4 +78,7 @@ jobs:
         context: .
         tags: ghcr.io/${{ env.OWNER_LC }}/hivebox:${{ github.sha }}   
 
-    
+    - name: Test
+      run: |
+          docker run --rm -p 8000:8000 -it ghcr.io/${{ env.OWNER_LC }}/hivebox:${{ github.sha }}
+          curl localhost:8000/version
