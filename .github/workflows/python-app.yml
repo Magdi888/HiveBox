@@ -85,7 +85,7 @@ jobs:
             sleep 5
           done
           response=$(curl -s http://localhost:8000/version)
-          if [[ "$response" == "0.0.1" ]]; then
+          if [[ "$response" == '"0.0.1"'' ]]; then
             echo "Endpoint is up"
           else
             echo "Endpoint is not up"
