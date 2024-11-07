@@ -81,7 +81,11 @@ jobs:
     - name: Test Endpoint 
       run: |
           docker run -d -p 8000:8000 --name hivebox ghcr.io/${{ env.OWNER_LC }}/hivebox:${{ github.sha }}
-          until [ $(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/version) -eq 200 ]; do sleep 5; done
+          until [ $(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/version) -eq 200 ]; do
+            sleep 5
+          done
+          curl -s http://localhost:8000/version
+          sleep 30
           response=$(curl -s http://localhost:8000/version)
           if [ "$response" == "0.0.1" ]; then
             echo "Endpoint is up"
