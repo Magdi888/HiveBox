@@ -21,6 +21,8 @@ MarkupSafe==3.0.2
 mdurl==0.1.2
 packaging==24.1
 pluggy==1.5.0
+prometheus-fastapi-instrumentator==7.0.0
+prometheus_client==0.21.1
 pydantic==2.9.2
 pydantic_core==2.23.4
 Pygments==2.18.0
@@ -40,6 +42,7 @@ typer==0.12.5
 typing_extensions==4.12.2
 urllib3==2.2.3
 uvicorn==0.32.0
+uvloop==0.21.0
 watchfiles==0.24.0
 websockets==13.1
 zope.interface==7.1.1
