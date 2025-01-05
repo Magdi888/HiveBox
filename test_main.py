@@ -1,10 +1,10 @@
 """
 This module contains tests for the FastAPI application endpoints.
 """
-
+import pytest
+import requests
 from fastapi.testclient import TestClient
 from main import app  # Import your FastAPI app
-import pytest
 
 client = TestClient(app)
 
@@ -41,7 +41,6 @@ def test_temperature_success():
         return MockResponse(mock_response)
     
     # Apply the mock
-    import requests
     monkeypatch = pytest.MonkeyPatch()
     monkeypatch.setattr(requests, "get", mock_get)
     
@@ -73,7 +72,6 @@ def test_temperature_no_data():
         
         return MockResponse(mock_response)
     
-    import requests
     monkeypatch = pytest.MonkeyPatch()
     monkeypatch.setattr(requests, "get", mock_get)
     
@@ -86,7 +84,6 @@ def test_temperature_api_error():
     def mock_get(*args, **kwargs):
         raise requests.RequestException("API Error")
     
-    import requests
     monkeypatch = pytest.MonkeyPatch()
     monkeypatch.setattr(requests, "get", mock_get)
     

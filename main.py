@@ -2,7 +2,7 @@
 This module handles the application versioning using semantic_version.
 """
 import datetime
-
+import os
 import semantic_version
 from prometheus_fastapi_instrumentator import Instrumentator
 
@@ -22,10 +22,11 @@ async def temperature():
     """Return average temperature based on all sensebox data"""
     data_format = "json"
     phenomenon = "temperature"
+    open_sense_map_url = os.environ.get('OPENSENSEMAP_URL', "https://api.opensensemap.org")
     date = datetime.datetime.now().isoformat() + "Z"
     try:
         req = requests.get(
-            f'https://api.opensensemap.org/boxes?date={date}&phenomenon={phenomenon}&format={data_format}',
+            f'{open_sense_map_url}/boxes?date={date}&phenomenon={phenomenon}&format={data_format}',
             timeout=120)
         response = req.json()
     except requests.RequestException as e:
