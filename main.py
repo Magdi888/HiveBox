@@ -4,6 +4,7 @@ This module handles the application versioning using semantic_version.
 import datetime
 
 import semantic_version
+from prometheus_fastapi_instrumentator import Instrumentator
 
 from fastapi import FastAPI, HTTPException
 import requests
@@ -15,6 +16,7 @@ async def version():
     app_version = semantic_version.Version('0.0.1')
     return str(app_version)
 
+Instrumentator().instrument(app).expose(app)
 @app.get("/temperature")
 async def temperature():
     """Return average temperature based on all sensebox data"""
@@ -38,4 +40,14 @@ async def temperature():
     if counter == 0:
         raise HTTPException(status_code=404, detail="No Temp data found")
     data = measurement / counter
-    return {"message": f"The average Temp is {round(data, 2)}"}
+    data = int(data)
+
+    match data:
+        case _ if data < 10:
+            return {"temperature": data, "status": "Too cold"}
+        case _ if data >= 11 or data <= 36:
+            return {"temperature": data, "status": "Good"}
+        case _ if data > 37:
+            return {"temperature": data, "status": "Too hot"}
+        case _:
+            raise HTTPException(status_code=404, detail="No Temp data found")
