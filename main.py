@@ -35,7 +35,7 @@ minio_endpoint = os.environ.get('MINIO_ENDPOINT', 'localhost:9000')
 minio_access_key = os.environ.get('MINIO_ACCESS_KEY', 'your_access_key')
 minio_secret_key = os.environ.get('MINIO_SECRET_KEY', 'your_secret_key')
 minio_bucket = os.environ.get('MINIO_BUCKET', 'temperature-data')
-
+open_sense_map_url = os.environ.get('OPENSENSEMAP_URL', "https://api.opensensemap.org")
 # Initialize MinIO client
 
 minio_client = Minio(
@@ -89,28 +89,8 @@ async def temperature():
         cache_miss.inc()
         logger.info("Data retrieved from OpenSenseMap API")
         start_time= time.time()
-        data_format = "json"
-        phenomenon = "temperature"
-        open_sense_map_url = os.environ.get('OPENSENSEMAP_URL', "https://api.opensensemap.org")
-        date = datetime.datetime.now().isoformat() + "Z"
-        try:
-            req = requests.get(
-                f'{open_sense_map_url}/boxes?date={date}&phenomenon={phenomenon}&format={data_format}',
-                timeout=120)
-            response = req.json()
-        except requests.RequestException as e:
-            raise HTTPException(status_code=500, detail=str(e)) from e
-        measurement = 0
-        counter = 0
-        for box in response:
-            for sensor in box.get("sensors",[]):
-                if sensor.get("title") == "Temperatur":
-                    counter += 1
-                    measurement += float(sensor["lastMeasurement"]["value"])
-        if counter == 0:
-            raise HTTPException(status_code=404, detail="No Temp data found")
-        data = measurement / counter
-        data = int(data)
+        response = fetch_temperature_from_api()
+        data = calculate_average_temperature(response)
         redis_client.set('temperature', data, ex=CACHE_EXPIRATION)
         logger.info("Data stored in cache")
         api_response_time.observe(time.time() - start_time)
@@ -147,36 +127,15 @@ async def readiness_check():
             logger.info("Cached content is fresh.")
         else:
             logger.warning("Cached content is older than 5 minutes.")
+            return {"status": "not ready", "reason": "Cache is older than 5 minutes"}, status.HTTP_503_SERVICE_UNAVAILABLE
     else:
         logger.warning("No cached content found.")
+        return {"status": "not ready", "reason": "No cached content found"}, status.HTTP_503_SERVICE_UNAVAILABLE
 
     # Check accessibility of senseBoxes
     try:
-        data_format = "json"
-        phenomenon = "temperature"
-        open_sense_map_url = os.environ.get('OPENSENSEMAP_URL', "https://api.opensensemap.org")
-        date = datetime.datetime.now().isoformat() + "Z"
-        response = requests.get(
-            f'{open_sense_map_url}/boxes?date={date}&phenomenon={phenomenon}&format={data_format}',
-            timeout=120)
-        boxes = response.json()
 
-        # Count total senseBoxes and inaccessible ones
-        total_boxes = len(boxes)
-        inaccessible_boxes = 0
-
-        for box in boxes:
-            try:
-                # Check if the box is accessible by fetching its sensors
-                box_id = box["_id"]
-                box_response = requests.get(
-                    f'{open_sense_map_url}/boxes/{box_id}/sensors',
-                    timeout=10)
-                if box_response.status_code != 200:
-                    inaccessible_boxes += 1
-            except requests.RequestException:
-                inaccessible_boxes += 1
-
+        total_boxes, inaccessible_boxes = check_sensboxes_available()
         # Calculate the percentage of inaccessible senseBoxes
         if total_boxes == 0:
             logger.error("No senseBoxes found.")
@@ -186,16 +145,16 @@ async def readiness_check():
         logger.info("Inaccessible senseBoxes: %d/%d (%.2f%%)", inaccessible_boxes, total_boxes, inaccessible_percentage)
 
         # Determine if the application is ready
-        if inaccessible_percentage > 50 and (not cached_temperature or cache_timestamp >= 300):
-            logger.error("Application is not ready: More than 50% of senseBoxes are inaccessible AND cached content is stale.")
-            return {"status": "unavailable", "message": "More than 50% of senseBoxes are inaccessible AND cached content is stale"}, status.HTTP_503_SERVICE_UNAVAILABLE
-        else:
-            logger.info("Application is ready.")
-            return {"status": "ready"}, status.HTTP_200_OK
-
-    except requests.RequestException as e:
+        if inaccessible_percentage > 50:
+            logger.error("Application is not ready: More than 50% of senseBoxes are inaccessible")
+            return {"status": "unavailable", "message": "More than 50% of senseBoxes are inaccessible."}, status.HTTP_503_SERVICE_UNAVAILABLE
+        logger.info("Application is ready")
+        return {"status": "ready", "message": "Application is ready"}, status.HTTP_200_OK
+    except (requests.RequestException, redis.RedisError, S3Error) as e:
         logger.error("Error checking senseBox accessibility: %s", e)
         return {"status": "error", "message": str(e)}, status.HTTP_503_SERVICE_UNAVAILABLE
+
+
 def store_temperature_in_minio(temp: int):
     """Store temperature data in MinIO."""
     try:
@@ -228,7 +187,7 @@ async def store_temperature_periodically():
             cached_temperature = redis_client.get('temperature')
             if cached_temperature:
                 # If cached, store it in MinIO
-                current_temperature = int(cached_temperature.decode('utf-8'))
+                current_temperature = int(cached_temperature)
                 store_temperature_in_minio(current_temperature)
             else:
                 # If not cached, call the /temperature endpoint to fetch the data
@@ -248,3 +207,58 @@ async def store_temperature_periodically():
         # Wait for 5 minutes
         logger.info("Waiting for 5 minutes before next check...")
         await asyncio.sleep(300)
+
+def fetch_temperature_from_api():
+    """Fetch temperature data from OpenSenseMap API."""
+    data_format = "json"
+    phenomenon = "temperature"
+    date = datetime.datetime.now().isoformat() + "Z"
+    try:
+        response = requests.get(
+            f'{open_sense_map_url}/boxes?date={date}&phenomenon={phenomenon}&format={data_format}',
+            timeout=120)
+        response.raise_for_status()
+        return response.json()
+    except requests.RequestException as e:
+        logger.error("Error fetching temperature data from OpenSenseMap API: %s", e)
+        raise e
+
+def calculate_average_temperature(response):
+    """Calculate the average temperature from the OpenSenseMap API response."""
+    measurement = 0
+    counter = 0
+    for box in response:
+        for sensor in box.get("sensors", []):
+            if sensor.get("title") == "Temperatur":
+                counter += 1
+                measurement += float(sensor["lastMeasurement"]["value"])
+    if counter == 0:
+        raise HTTPException(status_code=404, detail="No temperature data found")
+    return int(measurement / counter)
+
+def check_sensboxes_available():
+    """Check if senseBoxes are available."""
+    try:
+        response = fetch_temperature_from_api()
+        boxes = response
+
+        # Count total senseBoxes and inaccessible ones
+        total_boxes = len(boxes)
+        inaccessible_boxes = 0
+
+        for box in boxes:
+            try:
+                # Check if the box is accessible by fetching its sensors
+                box_id = box["_id"]
+                box_response = requests.get(
+                    f'{open_sense_map_url}/boxes/{box_id}/sensors',
+                    timeout=10)
+                if box_response.status_code != 200:
+                    inaccessible_boxes += 1
+            except requests.RequestException:
+                inaccessible_boxes += 1
+
+        return total_boxes, inaccessible_boxes
+    except requests.RequestException as e:
+        logger.error(f"Error checking senseBox accessibility: {e}")
+        raise
