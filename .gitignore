@@ -2,3 +2,7 @@ env
 api.txt
 .pytest*
 __pycache__
+main.py-old
+setup.py
+.vscode
+hivebox.egg-info
