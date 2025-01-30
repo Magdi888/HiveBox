@@ -3,7 +3,7 @@ import logging
 import requests
 import redis
 from fastapi import status
-from app.services import check_sensboxes_available
+from app.services import count_available_senseboxes
 from app.storage import redis_client
 
 
@@ -15,26 +15,20 @@ def readiness_check():
     - 50% + 1 of the configured senseBoxes are not accessible.
     - AND caching content is older than 5 minutes.
     """
-    # Check if cached content is older than 5 minutes
-    cached_temperature = redis_client.get('temperature')
-    if cached_temperature:
-        cache_timestamp = redis_client.ttl('temperature')  # Time to live in seconds
-        logger.info("Cache TTL: %s", cache_timestamp)
-        if cache_timestamp > 0 and cache_timestamp < 300:  # 300 seconds = 5 minutes
-            logger.info("Cached content is fresh.")
-        else:
-            logger.warning("Cached content is older than 5 minutes.")
-            return {"status": "not ready", "reason": "Cache is older than 5 minutes"}, status.HTTP_503_SERVICE_UNAVAILABLE
-    else:
-        logger.warning("No cached content found.")
-        return {"status": "not ready", "reason": "No cached content found"}, status.HTTP_503_SERVICE_UNAVAILABLE
-
-    # Check accessibility of senseBoxes
     try:
+        # Check if cached content is older than 5 minutes
+        cached_temperature = redis_client.get('temperature')
+        if cached_temperature:
+            cache_timestamp = redis_client.ttl('temperature')  # Time to live in seconds
+            logger.info("Cache TTL: %s", cache_timestamp)
+            if cache_timestamp is not None and 0 < cache_timestamp < 300:  # 300 seconds = 5 minutes
+                logger.info("Cached content is fresh.")
+                return {"status": "ready", "message": "Application is ready"}, status.HTTP_200_OK
 
-        total_boxes, inaccessible_boxes = check_sensboxes_available()
+        # Check accessibility of senseBoxes
+        total_boxes, inaccessible_boxes = count_available_senseboxes()
         logger.info("Total senseBoxes: %d, Inaccessible senseBoxes: %d", total_boxes, inaccessible_boxes)
-        # Calculate the percentage of inaccessible senseBoxes
+
         if total_boxes == 0:
             logger.error("No senseBoxes found.")
             return {"status": "error", "message": "No senseBoxes found"}, status.HTTP_503_SERVICE_UNAVAILABLE
@@ -46,8 +40,10 @@ def readiness_check():
         if inaccessible_percentage >= 50:
             logger.error("Application is not ready: More than 50% of senseBoxes are inaccessible")
             return {"status": "unavailable", "message": "More than 50% of senseBoxes are inaccessible."}, status.HTTP_503_SERVICE_UNAVAILABLE
+        
         logger.info("Application is ready")
         return {"status": "ready", "message": "Application is ready"}, status.HTTP_200_OK
+
     except (requests.RequestException, redis.RedisError) as e:
-        logger.error("Error checking senseBox accessibility: %s", e)
+        logger.error("Error checking senseBox accessibility or cached data: %s", e)
         return {"status": "error", "message": str(e)}, status.HTTP_503_SERVICE_UNAVAILABLE

@@ -6,3 +6,4 @@ main.py-old
 setup.py
 .vscode
 hivebox.egg-info
+.coverage

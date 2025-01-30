@@ -26,15 +26,16 @@ minio_client = Minio(
     secure=False  # Set to True if using HTTPS
 )
 
-# Ensure the bucket exists
-if not minio_client.bucket_exists(MINIO_BUCKET):
-    try:
-        minio_client.make_bucket(MINIO_BUCKET)
-    except S3Error as e:
-        logger.error(e)
-        raise HTTPException(status_code=500, detail="Failed to create MinIO bucket") from e
+
 def store_temperature_in_minio(temp: int):
     """Store temperature data in MinIO."""
+    # Ensure the bucket exists
+    if not minio_client.bucket_exists(MINIO_BUCKET):
+        try:
+            minio_client.make_bucket(MINIO_BUCKET)
+        except S3Error as e:
+            logger.error(e)
+            raise HTTPException(status_code=500, detail="Failed to create MinIO bucket") from e
     try:
         timestamp = datetime.now().isoformat()
         data = {

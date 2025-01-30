@@ -58,36 +58,35 @@ def get_temperature():
     match data:
         case _ if data < 10:
             return {"temperature": data, "status": "Too cold"}
-        case _ if data >= 11 or data <= 36:
+        case _ if data >= 10 and data <= 36:
             return {"temperature": data, "status": "Good"}
-        case _ if data > 37:
+        case _ if data > 36:
             return {"temperature": data, "status": "Too hot"}
         case _:
             raise HTTPException(status_code=404, detail="No Temp data found")
     
-def check_sensboxes_available():
-    """Check if senseBoxes are available."""
+def count_available_senseboxes() -> tuple[int, int]:
+    """Counts the total number of senseBoxes and the number of inaccessible ones."""
     try:
         response = fetch_temperature_from_api()
-        boxes = response
+        senseboxes = response
 
-        # Count total senseBoxes and inaccessible ones
-        total_boxes = len(boxes)
-        inaccessible_boxes = 0
+        total_senseboxes = len(senseboxes)
+        inaccessible_senseboxes = 0
 
-        for box in boxes:
+        for sensebox in senseboxes:
+            sensebox_id = sensebox["_id"]
             try:
-                # Check if the box is accessible by fetching its sensors
-                box_id = box["_id"]
-                box_response = requests.get(
-                    f'{OPENSENSEMAP_URL}/boxes/{box_id}/sensors',
-                    timeout=10)
-                if box_response.status_code != 200:
-                    inaccessible_boxes += 1
+                # Check if the sensebox is accessible by fetching its sensors
+                response = requests.get(
+                    f"{OPENSENSEMAP_URL}/boxes/{sensebox_id}/sensors", timeout=10
+                )
+                if response.status_code != 200:
+                    inaccessible_senseboxes += 1
             except requests.RequestException:
-                inaccessible_boxes += 1
+                inaccessible_senseboxes += 1
 
-        return total_boxes, inaccessible_boxes
-    except requests.RequestException as e:
-        logger.error("Error checking senseBox accessibility: %s", e)
+        return total_senseboxes, inaccessible_senseboxes
+    except requests.RequestException as error:
+        logger.error("Error checking sensebox accessibility: %s", error)
         raise

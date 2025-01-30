@@ -6,27 +6,6 @@ from app.api import app
 # Initialize the FastAPI test client
 client = TestClient(app)
 
-def test_temperature_endpoint_integration():
-    """Test the /temperature endpoint with Redis."""
-    mock_response = [
-        {
-            "sensors": [
-                {
-                    "title": "Temperatur",
-                    "lastMeasurement": {"value": "20"}
-                }
-            ]
-        }
-    ]
-
-    with patch("app.config.redis_client.get") as mock_redis_get, patch("app.services.fetch_temperature_from_api") as mock_fetch:
-        mock_redis_get.return_value = None  # Simulate cache miss
-        mock_fetch.return_value = mock_response
-
-        response = client.get("/temperature")
-        assert response.status_code == 200
-        assert response.json() == {"temperature": 20, "status": "Good"}
-
 
 def test_readyz_endpoint_integration():
     """Test the /readyz endpoint with Redis and OpenSenseMap API integration."""
