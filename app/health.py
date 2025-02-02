@@ -17,13 +17,14 @@ def readiness_check():
     """
     try:
         # Check if cached content is older than 5 minutes
+        ready_status = {"status": "ready", "message": "Application is ready"}
         cached_temperature = redis_client.get('temperature')
         if cached_temperature:
             cache_timestamp = redis_client.ttl('temperature')  # Time to live in seconds
             logger.info("Cache TTL: %s", cache_timestamp)
             if cache_timestamp is not None and 0 < cache_timestamp < 300:  # 300 seconds = 5 minutes
                 logger.info("Cached content is fresh.")
-                return {"status": "ready", "message": "Application is ready"}, status.HTTP_200_OK
+                return ready_status, status.HTTP_200_OK
 
         # Check accessibility of senseBoxes
         total_boxes, inaccessible_boxes = count_available_senseboxes()
@@ -42,7 +43,7 @@ def readiness_check():
             return {"status": "unavailable", "message": "More than 50% of senseBoxes are inaccessible."}, status.HTTP_503_SERVICE_UNAVAILABLE
         
         logger.info("Application is ready")
-        return {"status": "ready", "message": "Application is ready"}, status.HTTP_200_OK
+        return ready_status, status.HTTP_200_OK
 
     except (requests.RequestException, redis.RedisError) as e:
         logger.error("Error checking senseBox accessibility or cached data: %s", e)
