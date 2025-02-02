@@ -3,3 +3,6 @@ __pycache__
 .pytest*
 api.txt
 test*
+.*
+k8s
+.vscode

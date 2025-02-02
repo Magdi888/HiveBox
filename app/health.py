@@ -41,7 +41,6 @@ def readiness_check():
         if inaccessible_percentage >= 50:
             logger.error("Application is not ready: More than 50% of senseBoxes are inaccessible")
             return {"status": "unavailable", "message": "More than 50% of senseBoxes are inaccessible."}, status.HTTP_503_SERVICE_UNAVAILABLE
-        
         logger.info("Application is ready")
         return ready_status, status.HTTP_200_OK
 
