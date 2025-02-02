@@ -14,7 +14,6 @@ email_validator==2.2.0
 fastapi==0.115.4
 fastapi-cli==0.0.5
 h11==0.14.0
--e git+https://github.com/Magdi888/HiveBox.git@926866875e11af952b0bf071dab857928a3dfb09#egg=hivebox
 httpcore==1.0.6
 httptools==0.6.4
 httpx==0.27.2

@@ -1,11 +1,17 @@
 """Unit tests for the FastAPI application."""
 import unittest
-from unittest.mock import patch
+from unittest.mock import patch, Mock
+from datetime import datetime
+import json
 from fastapi import status, HTTPException
 import redis
+from minio.error import S3Error
 import requests
+import pytest
+from starlette.status import HTTP_500_INTERNAL_SERVER_ERROR
 from app.health import readiness_check
 from app.services import get_temperature, fetch_temperature_from_api, calculate_average_temperature
+from app.storage import store_temperature_in_minio
 
 class FetchTemperatureFromApiTestCase(unittest.TestCase):
     """Test cases for the fetch_temperature_from_api service."""
@@ -189,3 +195,108 @@ class TestReadinessCheck(unittest.TestCase):
         mock_count_available_senseboxes.return_value = (10, 0)
         result = readiness_check()
         self.assertEqual(result, ({"status": "error", "message": "Error"}, status.HTTP_503_SERVICE_UNAVAILABLE))
+
+class TestStorageFunctions(unittest.TestCase):
+    """Test cases for the storage functions."""
+    @pytest.fixture(autouse=True)
+    def setup(self):
+        """Setup the test environment."""
+        self.mock_minio = Mock()
+        self.mock_logger = Mock()
+        self.mock_datetime = Mock()
+        
+        # Patch dependencies
+        self.patcher_minio = patch('app.storage.minio_client', self.mock_minio)
+        self.patcher_logger = patch('app.storage.logger', self.mock_logger)
+        self.patcher_datetime = patch('app.storage.datetime', self.mock_datetime)
+        
+        self.patcher_minio.start()
+        self.patcher_logger.start()
+        self.patcher_datetime.start()
+        
+        # Fixed timestamp for testing
+        self.fixed_time = datetime(2024, 1, 1, 12, 0, 0)
+        self.mock_datetime.now.return_value = self.fixed_time
+        
+        yield
+        
+        self.patcher_minio.stop()
+        self.patcher_logger.stop()
+        self.patcher_datetime.stop()
+
+    def test_store_temperature_success_new_bucket(self):
+        """ Test that the service stores temperature data in MinIO successfully when a new bucket is created. """
+        # Arrange
+        self.mock_minio.bucket_exists.return_value = False
+        
+        # Act
+        store_temperature_in_minio(25)
+        
+        # Assert
+        self.mock_minio.make_bucket.assert_called_once_with('temperature-data')
+        self._verify_object_upload(25)
+
+    def test_store_temperature_success_existing_bucket(self):
+        """ Test that the service stores temperature data in MinIO successfully when an existing bucket is used. """
+        # Arrange
+        self.mock_minio.bucket_exists.return_value = True
+        
+        # Act
+        store_temperature_in_minio(25)
+        
+        # Assert
+        self.mock_minio.make_bucket.assert_not_called()
+        self._verify_object_upload(25)
+
+    def test_bucket_creation_failure(self):
+        """ Test that the service raises an exception when MinIO bucket creation fails. """
+        # Arrange
+        self.mock_minio.bucket_exists.return_value = False
+        self.mock_minio.make_bucket.side_effect = S3Error(resource='temperature-data', request_id='mock_request',host_id='mock_host',code=500,message="Internal Server Error", response=HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        # Act/Assert
+        with pytest.raises(HTTPException) as exc_info:
+            store_temperature_in_minio(25)
+        
+        assert exc_info.value.status_code == 500
+        self.mock_logger.error.assert_called()
+
+    def test_object_upload_failure(self):
+        """ Test that the service raises an exception when MinIO object upload fails. """
+        # Arrange
+        self.mock_minio.bucket_exists.return_value = True
+        self.mock_minio.put_object.side_effect = S3Error(resource='temperature-data', request_id='mock_request',host_id='mock_host',code=500,message="Internal Server Error", response=HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        # Act
+        store_temperature_in_minio(25)
+        
+        # Assert
+        self.mock_logger.error.assert_called_with(
+            "S3Error storing temperature data in MinIO: %s",
+            self.mock_minio.put_object.side_effect
+        )
+
+    def _verify_object_upload(self, expected_temp):
+        expected_object_name = f"temperature_{self.fixed_time.isoformat()}.json"
+        expected_data = {
+            "timestamp": self.fixed_time.isoformat(),
+            "temperature": expected_temp
+        }
+        
+        # Verify put_object call
+        self.mock_minio.put_object.assert_called_once_with(
+            'temperature-data',
+            expected_object_name,
+            unittest.mock.ANY,  # Data stream moc
+            len(json.dumps(expected_data).encode('utf-8'))
+        )
+        actual_data_stream = self.mock_minio.put_object.call_args[0][2]
+        actual_data_bytes = actual_data_stream.getvalue()
+        self.assertEqual(actual_data_bytes, json.dumps(expected_data).encode('utf-8'))
+        # Verify logging
+        self.mock_logger.info.assert_any_call(
+            "Storing data in MinIO: %s", expected_data
+        )
+        self.mock_logger.info.assert_any_call(
+            "Stored temperature data in MinIO: %s", expected_object_name
+        )
