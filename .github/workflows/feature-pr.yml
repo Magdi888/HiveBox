@@ -44,9 +44,15 @@ jobs:
           path: '.'
           format: 'HTML'
           out: 'reports' 
-
+      - name: Upload Test results
+        uses: actions/upload-artifact@master
+        with:
+           name: Depcheck report
+           path: ${{github.workspace}}/reports
   create-pr:
     needs: test
+    permissions:
+      pull-requests: write
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
