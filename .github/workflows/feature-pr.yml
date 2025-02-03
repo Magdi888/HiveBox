@@ -53,6 +53,7 @@ jobs:
     needs: test
     permissions:
       pull-requests: write
+      contents: write
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
