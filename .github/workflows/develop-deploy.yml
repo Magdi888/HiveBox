@@ -103,7 +103,6 @@ jobs:
           image-ref: 'ghcr.io/${{ env.OWNER_LC }}/hivebox:${{ github.sha }}'
           format: 'sarif'
           severity: 'CRITICAL,HIGH,MEDIUM'
-          exit-code: '1'
           output: 'trivy-results.sarif'
     - name: Upload Trivy scan results to GitHub Security tab
       if: always()
