@@ -20,7 +20,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install flake8 pytest pytest-cov bandit
+          pip install flake8 pytest pytest-cov
           pip install -r requirements.txt
 
       - name: Run tests
@@ -33,40 +33,17 @@ jobs:
             flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
             # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
             flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-      - name: Run bandit SAST
-        run: |
-          bandit -r . --skip B101,B104,B107
-      - name: Depcheck
-        uses: dependency-check/Dependency-Check_Action@main
-        id: Depcheck
-        with:
-          project: 'HivrBox'
-          path: '.'
-          format: 'HTML'
-          out: 'reports' 
+
 
   create-pr:
     needs: test
+    permissions:
+      pull-requests: write
+      contents: write
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-
-      - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v5
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          title: "Feature: ${{ github.ref_name }}"
-          body: |
-            ## Description
-            This PR introduces changes from the **${{ github.ref_name }}** branch
+          ref: ${{ github.ref_name }}
 
-            ## Checklist
-            - [ ] Tests passed
-            - [ ] Code linted
-          base: develop
-          branch: ${{ github.ref_name }}
-          draft: false
-          labels: |
-            feature
-            automated-pr

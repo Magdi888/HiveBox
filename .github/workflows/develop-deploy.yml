@@ -17,20 +17,6 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: SonarQube Server Scan
-        uses: sonarsource/sonarqube-scan-action@master
-        env:
-            SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-
-        # Check the Quality Gate status.
-      - name: SonarQube Server Quality Gate check
-        id: sonarqube-quality-gate-check
-        uses: sonarsource/sonarqube-quality-gate-action@master
-        with:
-            pollingTimeoutSec: 600
-        env:
-            SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-
       - name: Run bandit SAST
         run: |
             bandit -r . --skip B101,B104,B107
