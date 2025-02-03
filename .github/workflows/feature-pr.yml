@@ -48,7 +48,7 @@ jobs:
           ref: ${{ github.ref_name }}
 
       - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v5
+        uses: peter-evans/create-pull-request@v7
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           title: "Feature: ${{ github.ref_name }}"
