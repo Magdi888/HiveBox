@@ -6,7 +6,10 @@ on:
       - develop
 
 jobs:
-  test:
+  Testing:
+    permissions:
+      security-events: write
+      contents: read  
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
