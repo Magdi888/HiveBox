@@ -103,9 +103,9 @@ jobs:
           image-ref: 'ghcr.io/${{ env.OWNER_LC }}/hivebox:${{ github.sha }}'
           format: 'sarif'
           severity: 'CRITICAL,HIGH,MEDIUM'
-          output: 'trivy-results.sarif'
+          output: 'results.sarif'
     - name: Upload Trivy scan results to GitHub Security tab
       if: always()
       uses: github/codeql-action/upload-sarif@v3
       with:
-        sarif_file: 'trivy-results.sarif'
+        sarif_file: 'results.sarif'
