@@ -6,3 +6,6 @@ test*
 .*
 k8s
 .vscode
+.env
+coverage_re
+sonar-*
