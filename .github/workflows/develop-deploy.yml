@@ -104,6 +104,9 @@ jobs:
           format: 'sarif'
           severity: 'CRITICAL,HIGH,MEDIUM'
           output: 'results.sarif'
+    - name: Upload results to GitHub
+      run: |
+        cat results.sarif 
     - name: Upload Trivy scan results to GitHub Security tab
       if: always()
       uses: github/codeql-action/upload-sarif@v3
