@@ -7,7 +7,8 @@ on:
 
 permissions:
   security-events: write
-  contents: write
+  actions: read
+  contents: read
 jobs:
   Testing:
     runs-on: ubuntu-latest
@@ -103,10 +104,7 @@ jobs:
           image-ref: 'ghcr.io/${{ env.OWNER_LC }}/hivebox:${{ github.sha }}'
           format: 'sarif'
           severity: 'CRITICAL,HIGH,MEDIUM'
-          output: 'results.sarif'
-    - name: Upload results to GitHub
-      run: |
-        cat results.sarif 
+          output: 'results.sarif' 
     - name: Upload Trivy scan results to GitHub Security tab
       if: always()
       uses: github/codeql-action/upload-sarif@v3
